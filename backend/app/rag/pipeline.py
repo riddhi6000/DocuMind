@@ -44,3 +44,26 @@ def build_vector_store(file_path: str) -> VectorStore:
     vector_store.add_chunks(chunks, embeddings)
 
     return vector_store
+
+def retrieve_chunks(
+    vector_store: VectorStore,
+    question: str,
+    top_k: int = 3
+) -> list[dict]:
+    """
+    Retrieve the most relevant document chunks for a question.
+    """
+
+    if not question.strip():
+        raise ValueError("Question cannot be empty")
+
+    # Convert the user's question into an embedding
+    query_embedding = generate_embeddings([question])
+
+    # Search FAISS for the most similar document chunks
+    results = vector_store.search(
+        query_embedding,
+        top_k=top_k
+    )
+
+    return results
