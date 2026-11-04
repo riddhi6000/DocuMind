@@ -12,94 +12,125 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+<style>
+div.stFormSubmitButton > button {
+    background-color: #A78BFA;
+    color: #171421;
+    border: 1px solid #A78BFA;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+div.stFormSubmitButton > button:hover {
+    background-color: #8B6DE0;
+    border-color: #8B6DE0;
+    color: #FFFFFF;
+}
+
+/* Reduce top whitespace */
+.block-container {
+    padding-top: 2rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 st.title("📄 DocuMind")
-st.subheader("Your AI-powered PDF assistant")
-
-st.write(
-    "Upload a PDF document and ask questions about its contents."
+st.markdown(
+    "##### Your documents. Your questions. AI-powered answers."
+)
+st.caption(
+    "An intelligent PDF assistant powered by Retrieval-Augmented Generation."
 )
 
 st.divider()
 
-st.header("Upload your document")
+st.header("Your document")
+st.caption("Upload a PDF to start a conversation with your document.")
 
-uploaded_file = st.file_uploader(
-    "Choose a PDF file",
-    type=["pdf"]
-)
+with st.container(border=True):
 
-if uploaded_file is not None:
+    uploaded_file = st.file_uploader(
+        "Upload or replace your PDF",
+        type=["pdf"],
+        help="Choose a PDF document to analyze."
+    )
 
-    st.success(f"Uploaded: {uploaded_file.name}")
+    if uploaded_file is not None:
 
-    # Generate a unique fingerprint for the uploaded PDF
-    file_bytes = uploaded_file.getvalue()
-    file_hash = hashlib.sha256(file_bytes).hexdigest()
+        file_bytes = uploaded_file.getvalue()
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-    # Process only if this is a new document
-    if (
-        st.session_state.get("processed_file_hash") != file_hash
-        or "vector_store" not in st.session_state
-    ):
+        # Process only if this is a new document
+        if (
+            st.session_state.get("processed_file_hash") != file_hash
+            or "vector_store" not in st.session_state
+        ):
 
-        # Clear the previous document's data
-        st.session_state.pop("vector_store", None)
-        st.session_state.chat_history = []
+            # Clear previous document data
+            st.session_state.pop("vector_store", None)
+            st.session_state.chat_history = []
 
-        temp_file_path = None
+            temp_file_path = None
 
-        try:
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=".pdf"
-            ) as temp_file:
+            try:
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=".pdf"
+                ) as temp_file:
 
-                temp_file.write(file_bytes)
-                temp_file_path = temp_file.name
+                    temp_file.write(file_bytes)
+                    temp_file_path = temp_file.name
 
-            with st.spinner("Processing your PDF..."):
+                with st.spinner("Processing your document..."):
+                    vector_store = build_vector_store(temp_file_path)
 
-                vector_store = build_vector_store(temp_file_path)
+                st.session_state.vector_store = vector_store
+                st.session_state.pdf_name = uploaded_file.name
+                st.session_state.processed_file_hash = file_hash
 
-            # Save the processed document
-            st.session_state.vector_store = vector_store
-            st.session_state.pdf_name = uploaded_file.name
-            st.session_state.processed_file_hash = file_hash
+            except Exception as e:
+                st.error(f"Error processing PDF: {e}")
 
-            st.success(
-                "Your document is ready! You can now ask questions."
-            )
+            finally:
+                if temp_file_path and os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
 
-        except Exception as e:
-            st.error(f"Error processing PDF: {e}")
-
-        finally:
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-
-    else:
-        st.success("Your document is ready! You can now ask questions.")
+        # Show document status
+        if (
+            st.session_state.get("processed_file_hash") == file_hash
+            and "vector_store" in st.session_state
+        ):
+            st.success("Document ready")
+            st.write(f"📄 **{uploaded_file.name}**")
 
 st.header("Ask your document")
+st.caption(
+    "Ask questions, explore concepts, and get answers grounded in your PDF."
+)
 
 if "vector_store" in st.session_state:
 
-    # Display a button to clear the conversation
-    if st.button("Clear conversation"):
-        st.session_state.chat_history = []
-
     # Question input form
-    with st.form("question_form", clear_on_submit=True):
+    with st.container(border=True):
 
-        question = st.text_input(
-            "Enter your question",
-            placeholder="What does this document explain?"
-        )
+        st.markdown("**What would you like to know?**")
 
-        submitted = st.form_submit_button("Ask DocuMind")
+        with st.form("question_form", clear_on_submit=True):
+
+            question = st.text_input(
+                "Your question",
+                placeholder="e.g. Explain the main concepts in this document.",
+                label_visibility="collapsed"
+            )
+
+            submitted = st.form_submit_button(
+                "Ask DocuMind",
+                use_container_width=True
+            )
 
     # Process the submitted question
     if submitted:
@@ -137,7 +168,16 @@ if "vector_store" in st.session_state:
     if st.session_state.chat_history:
 
         st.divider()
-        st.subheader("Conversation")
+
+        col1, col2 = st.columns([5, 1])
+
+        with col1:
+            st.subheader("Conversation")
+
+        with col2:
+            if st.button("Clear chat", use_container_width=True):
+                st.session_state.chat_history = []
+                st.rerun()
 
         for chat in reversed(st.session_state.chat_history):
 
@@ -154,10 +194,10 @@ if "vector_store" in st.session_state:
 
                 for source in chat["sources"]:
 
-                    with st.expander(
-                        f"Page {source['page']} | "
-                        f"Similarity: {source['similarity']:.4f}"
-                    ):
+                    with st.expander(f"📄 Page {source['page']}"):
+                        st.caption(
+                            f"Retrieval similarity: {source['similarity']:.4f}"
+                        )
                         st.write(source["text"])
 
 else:
