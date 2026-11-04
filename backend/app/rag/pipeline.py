@@ -5,7 +5,7 @@ from backend.app.ingestion.pdf_loader import extract_text_from_pdf
 from backend.app.ingestion.chunker import chunk_pages
 from backend.app.embeddings.embedder import generate_embeddings
 from backend.app.retrieval.vector_store import VectorStore
-
+from backend.app.generation.llm import generate_answer
 
 def build_vector_store(file_path: str) -> VectorStore:
     """
@@ -67,3 +67,50 @@ def retrieve_chunks(
     )
 
     return results
+
+def answer_question(vector_store, question: str, top_k: int = 3) -> dict:
+    """
+    Answer a question using retrieved PDF chunks and Gemini.
+    """
+
+    # Step 1: Retrieve relevant chunks from FAISS
+    retrieved_chunks = retrieve_chunks(
+        vector_store,
+        question,
+        top_k
+    )
+
+    if not retrieved_chunks:
+        return {
+            "answer": "I couldn't find relevant information in the uploaded document.",
+            "sources": []
+        }
+
+    # Step 2: Build context with page references
+    context_parts = []
+
+    for chunk in retrieved_chunks:
+        context_parts.append(
+            f"[Page {chunk['page']}]\n{chunk['text']}"
+        )
+
+    context = "\n\n".join(context_parts)
+
+    # Step 3: Generate an answer using Gemini
+    answer = generate_answer(question, context)
+
+    # Step 4: Return answer and source metadata
+    sources = [
+        {
+            "page": chunk["page"],
+            "chunk_id": chunk["chunk_id"],
+            "similarity": chunk["similarity"],
+            "text": chunk["text"]
+        }
+        for chunk in retrieved_chunks
+    ]
+
+    return {
+        "answer": answer,
+        "sources": sources
+    }
