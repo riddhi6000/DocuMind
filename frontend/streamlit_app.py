@@ -2,6 +2,12 @@ import streamlit as st
 import tempfile
 import os
 import hashlib
+import sys
+from pathlib import Path
+
+# Add project root to Python's module search path
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Load Gemini API key from Streamlit Cloud secrets
 try:
