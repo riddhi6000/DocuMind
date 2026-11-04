@@ -121,8 +121,14 @@ if "vector_store" in st.session_state:
                     "sources": result["sources"]
                 })
 
-            except Exception as e:
-                st.error(f"Error generating answer: {e}")
+            except RuntimeError as e:
+                st.error(str(e))
+
+            except Exception:
+                st.error(
+                    "Something went wrong while generating your answer. "
+                    "Please try again later."
+                )
 
         else:
             st.warning("Please enter a question.")
@@ -133,7 +139,7 @@ if "vector_store" in st.session_state:
         st.divider()
         st.subheader("Conversation")
 
-        for chat in st.session_state.chat_history:
+        for chat in reversed(st.session_state.chat_history):
 
             # Display user's question
             with st.chat_message("user"):
