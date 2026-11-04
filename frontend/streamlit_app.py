@@ -3,6 +3,12 @@ import tempfile
 import os
 import hashlib
 
+# Load Gemini API key from Streamlit Cloud secrets
+try:
+    os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+except (KeyError, FileNotFoundError):
+    pass
+
 from backend.app.rag.pipeline import build_vector_store
 from backend.app.rag.pipeline import answer_question
 
