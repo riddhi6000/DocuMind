@@ -1,11 +1,14 @@
 
-from sentence_transformers import SentenceTransformer
+from functools import lru_cache
 
-
-# Load the embedding model
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-model = SentenceTransformer(MODEL_NAME)
+
+@lru_cache(maxsize=1)
+def get_model():
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer(MODEL_NAME)
 
 
 def generate_embeddings(texts: list[str]):
@@ -18,6 +21,8 @@ def generate_embeddings(texts: list[str]):
     Returns:
         A NumPy array containing the embeddings.
     """
+
+    model = get_model()
 
     embeddings = model.encode(
         texts,
