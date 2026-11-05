@@ -18,6 +18,33 @@ except (KeyError, FileNotFoundError):
 from backend.app.rag.pipeline import build_vector_store
 from backend.app.rag.pipeline import answer_question
 
+@st.cache_resource(max_entries=2)
+def get_cached_vector_store(file_hash: str, _file_bytes: bytes):
+    """
+    Return a cached vector store for a PDF.
+    Build it only when the PDF is not already cached.
+    """
+
+    temp_file_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".pdf"
+        ) as temp_file:
+
+            temp_file.write(_file_bytes)
+            temp_file_path = temp_file.name
+
+        vector_store = build_vector_store(temp_file_path)
+
+        return vector_store
+
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+
 st.set_page_config(
     page_title="DocuMind",
     page_icon="📄",
@@ -86,19 +113,12 @@ with st.container(border=True):
             st.session_state.pop("vector_store", None)
             st.session_state.chat_history = []
 
-            temp_file_path = None
-
             try:
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    suffix=".pdf"
-                ) as temp_file:
-
-                    temp_file.write(file_bytes)
-                    temp_file_path = temp_file.name
-
                 with st.spinner("Processing your document..."):
-                    vector_store = build_vector_store(temp_file_path)
+                    vector_store = get_cached_vector_store(
+                        file_hash,
+                        file_bytes
+                    )
 
                 st.session_state.vector_store = vector_store
                 st.session_state.pdf_name = uploaded_file.name
@@ -106,10 +126,6 @@ with st.container(border=True):
 
             except Exception as e:
                 st.error(f"Error processing PDF: {e}")
-
-            finally:
-                if temp_file_path and os.path.exists(temp_file_path):
-                    os.remove(temp_file_path)
 
         # Show document status
         if (
